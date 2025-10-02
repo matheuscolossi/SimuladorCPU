@@ -1,0 +1,25 @@
+1) O que é:
+Este programa simula o funcionamento básico de uma CPU didática.
+Ele mostra os registradores, a memória e o ciclo de execução (fetch, decode, execute).
+
+2) Como usar:
+- Clique em "Carregar" para carregar um programa de exemplo na memória.
+- Clique em "Step" para executar uma instrução por vez.
+- Clique em "Run" para rodar o programa completo automaticamente.
+- Clique em "Pause" para parar a execução contínua.
+- Clique em "Reset" para reiniciar a CPU e limpar a memória.
+
+3) Registradores:
+- PC: Program Counter (aponta para a próxima instrução)
+- IR: Instruction Register (instrução atual)
+- ACC: Acumulador (armazenamento temporário de resultados)
+- Z: Flag Zero (indica se o último resultado foi zero)
+
+4) Memória:
+A tabela representa a memória da CPU (256 posições).
+As instruções e dados ficam gravados nela.
+
+5) Exemplos incluídos:
+- Exemplo 1: Soma 5 + 3 e guarda o resultado na posição 10 da memória.
+- Exemplo 2: Grava os valores 3, 2, 1, 0 em posições 21 a 24 da memória.
+- Exemplo 3: Demonstração de salto condicional (JZ).
