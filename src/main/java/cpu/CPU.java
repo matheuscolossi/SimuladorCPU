@@ -9,7 +9,7 @@ public class CPU {
     public int Z;    // Flag Zero
     public boolean halted;
 
-    // Instruções
+    // ISA básica
     public static final int LOADI = 0x01;
     public static final int LOADM = 0x02;
     public static final int STORE = 0x03;
@@ -18,6 +18,12 @@ public class CPU {
     public static final int JMP   = 0x06;
     public static final int JZ    = 0x07;
     public static final int HALT  = 0xFF;
+
+    // Novas instruções
+    public static final int ADDM  = 0x08;  // ACC <- ACC + MEM[a]
+    public static final int SUBM  = 0x09;  // ACC <- ACC - MEM[a]
+    public static final int IN    = 0xF0;  // Lê inteiro p/ ACC
+    public static final int OUT   = 0xF1;  // Exibe ACC (via log)
 
     public CPU() { reset(); }
 
@@ -37,9 +43,12 @@ public class CPU {
     public String step() {
         if (halted) return "HALT";
         int op = mem[PC]; IR = op; PC = to8(PC + 1);
-        int arg = 0;
+
+        // quem precisa de operando?
         boolean needsArg = (op == LOADI || op == LOADM || op == STORE ||
-                op == ADDI  || op == SUBI  || op == JMP   || op == JZ);
+                op == ADDI  || op == SUBI  || op == JMP   || op == JZ ||
+                op == ADDM  || op == SUBM);
+        int arg = 0;
         if (needsArg) { arg = mem[PC]; PC = to8(PC + 1); }
 
         String log;
@@ -49,14 +58,26 @@ public class CPU {
             case STORE -> { mem[clampAddr(arg)] = ACC; log = "STORE [" + arg + "] <- " + ACC; }
             case ADDI  -> { ACC = to8(ACC + arg); setZ(ACC); log = "ADDI " + arg + " -> " + ACC; }
             case SUBI  -> { ACC = to8(ACC - arg); setZ(ACC); log = "SUBI " + arg + " -> " + ACC; }
+            case ADDM  -> { ACC = to8(ACC + mem[clampAddr(arg)]); setZ(ACC); log = "ADDM [" + arg + "] -> ACC=" + ACC; }
+            case SUBM  -> { ACC = to8(ACC - mem[clampAddr(arg)]); setZ(ACC); log = "SUBM [" + arg + "] -> ACC=" + ACC; }
             case JMP   -> { PC = clampAddr(arg); log = "JMP " + arg; }
             case JZ    -> {
                 if (Z == 1) { PC = clampAddr(arg); log = "JZ -> salto para " + arg; }
                 else { log = "JZ ignorado"; }
             }
+            case IN    -> {
+                String s = javax.swing.JOptionPane.showInputDialog(
+                        null, "Digite um inteiro:", "IN", javax.swing.JOptionPane.QUESTION_MESSAGE);
+                int v = 0;
+                try { if (s != null) v = Integer.parseInt(s.trim()); } catch (Exception ignored) {}
+                ACC = to8(v); setZ(ACC);
+                log = "IN -> ACC=" + ACC;
+            }
+            case OUT   -> { log = "OUT -> ACC=" + ACC; }
             case HALT  -> { halted = true; log = "HALT"; }
             default    -> { halted = true; log = "INV 0x" + Integer.toHexString(op); }
         }
+
         return String.format("PC=%03d | IR=0x%02X | ACC=%d | Z=%d :: %s", PC, op, ACC, Z, log);
     }
 }

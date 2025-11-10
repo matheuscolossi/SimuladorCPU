@@ -237,23 +237,29 @@ public class AppSwing extends JFrame {
     private void loadUserProgram(String userCode) {
         try {
             timer.stop();
-            String src = userCode == null ? "" : userCode.replace("\r\n", "\n").trim();
+            String src = (userCode == null ? "" : userCode.replace("\r\n","\n").trim());
             if (src.isBlank()) {
                 JOptionPane.showMessageDialog(this,
                         "O programa está vazio. Exemplo:\n\nLOADI 5\nADDI 3\nSTORE 10\nHALT",
                         "Programa vazio", JOptionPane.WARNING_MESSAGE);
                 return;
             }
-            int[] bin = Assembler.assemble(src);
-            if (bin == null || bin.length == 0) {
-                JOptionPane.showMessageDialog(this,
-                        "O montador não gerou código. Verifique a sintaxe.",
-                        "Erro de montagem", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
+
+            // Monta com suporte a variáveis (dados a partir do endereço 200)
+            Assembler.AsmOut out = Assembler.assembleWithVars(src, 200);
+
             cpu.halted = false;
-            cpu.reset();
-            System.arraycopy(bin, 0, cpu.mem, 0, Math.min(bin.length, cpu.mem.length));
+            cpu.reset(); // zera registradores + memória
+
+            // copia código
+            System.arraycopy(out.code, 0, cpu.mem, 0, Math.min(out.code.length, cpu.mem.length));
+            // inicializa dados
+            for (Map.Entry<Integer,Integer> e : out.dataInits.entrySet()) {
+                int addr = e.getKey();
+                int val  = e.getValue();
+                if (addr >= 0 && addr < cpu.mem.length) cpu.mem[addr] = val & 0xFF;
+            }
+
             refreshUI();
             expl.setText(
                     "Programa do usuário carregado com sucesso!\n" +
@@ -266,6 +272,7 @@ public class AppSwing extends JFrame {
                     "Erro", JOptionPane.ERROR_MESSAGE);
         }
     }
+
 
     private String dumpBytes(int start, int count) {
         StringBuilder sb = new StringBuilder();
