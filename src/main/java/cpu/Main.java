@@ -1,25 +1,20 @@
 package cpu;
 
+/**
+ * Ponto de entrada (Main) principal da aplicação Simulador de CPU.
+ *
+ * Esta classe serve como o "lançador" (launcher) oficial.
+ * Ela simplesmente delega toda a inicialização e execução
+ * para a classe AppSwing, que contém nossa interface gráfica (GUI).
+ */
 public class Main {
+
+    /**
+     * O método main da aplicação.
+     * @param args Argumentos de linha de comando (não utilizados).
+     */
     public static void main(String[] args) {
-        String prog = """
-            LOADI 5
-            ADDI  3
-            STORE 10
-            HALT
-            """;
-
-        CPU cpu = new CPU();
-        int[] bin = Assembler.assemble(prog);
-        for (int i = 0; i < bin.length; i++) cpu.mem[i] = bin[i];
-
-        System.out.println("=== Execução ===");
-        int steps = 0;
-        while (!cpu.halted && steps < 100) {
-            System.out.println(cpu.step());
-            steps++;
-        }
-        System.out.println("=== Fim ===");
-        System.out.println("Resultado em MEM[10] = " + cpu.mem[10]);
+        // Chama o método main da nossa aplicação Swing para iniciar a interface
+        AppSwing.main(args);
     }
 }

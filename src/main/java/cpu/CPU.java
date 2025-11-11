@@ -42,7 +42,11 @@ public class CPU {
     /** Executa UMA instrução e retorna log do passo */
     public String step() {
         if (halted) return "HALT";
-        int op = mem[PC]; IR = op; PC = to8(PC + 1);
+        int op = mem[PC]; IR = op;
+
+        // Pega o PC ANTES de o incrementar, para o debugMap
+        int currentPC = PC;
+        PC = to8(PC + 1);
 
         // quem precisa de operando?
         boolean needsArg = (op == LOADI || op == LOADM || op == STORE ||
@@ -78,6 +82,7 @@ public class CPU {
             default    -> { halted = true; log = "INV 0x" + Integer.toHexString(op); }
         }
 
-        return String.format("PC=%03d | IR=0x%02X | ACC=%d | Z=%d :: %s", PC, op, ACC, Z, log);
+        // Retorna o PC que foi USADO para este passo (para o depurador)
+        return String.format("PC=%03d | IR=0x%02X | ACC=%d | Z=%d :: %s", currentPC, op, ACC, Z, log);
     }
 }
