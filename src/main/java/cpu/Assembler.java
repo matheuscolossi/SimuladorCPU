@@ -6,11 +6,9 @@ import java.util.regex.Pattern;
 
 public class Assembler {
 
-    /** Saída com código e dados inicializados (endereço -> valor). */
     public static class AsmOut {
         public final int[] code;
         public final Map<Integer,Integer> dataInits;
-        /** Mapeia Endereço de Memória (PC) -> Número da Linha no Editor */
         public final Map<Integer,Integer> debugMap;
 
         public AsmOut(int[] code, Map<Integer,Integer> dataInits, Map<Integer,Integer> debugMap) {
@@ -20,23 +18,15 @@ public class Assembler {
         }
     }
 
-    // Padrão para variáveis (ex: X, DEC 0)
     private static final Pattern varPat = Pattern.compile("^([A-Za-z_][A-Za-z0-9_]*)\\s*,?\\s+DEC\\s+(-?\\d+)\\s*$", Pattern.CASE_INSENSITIVE);
-    // Padrão para rótulos de código (ex: LOOP:)
     private static final Pattern codeLabelPat = Pattern.compile("^([A-Za-z_][A-Za-z0-9_]*):\\s*$", Pattern.CASE_INSENSITIVE);
 
-
-    // API antiga (para exemplos simples sem variáveis)
     public static int[] assemble(String src) {
-        // Esta API antiga não gera mapa de depuração
         return assembleWithVars(src, 200).code;
     }
 
-    /** Monta código e inicializações de dados. dataBase = endereço inicial das variáveis (ex.: 200). */
     public static AsmOut assembleWithVars(String src, int dataBase) {
         String[] lines = src.split("\\R");
-
-        // 1) Primeira passada: localizar variáveis, rótulos e criar mapa de depuração
         Map<String,Integer> symbols = new LinkedHashMap<>();
         Map<Integer,Integer> dataInits = new LinkedHashMap<>();
         Map<Integer,Integer> debugMap = new LinkedHashMap<>();
@@ -45,58 +35,46 @@ public class Assembler {
         int nextData = dataBase;
         int lineNumber = 0;
 
+        // Passada 1
         for (String raw : lines) {
             lineNumber++;
             String line = stripComments(raw).trim();
             if (line.isEmpty()) continue;
 
-            // É um RÓTULO DE CÓDIGO? (ex: LOOP:)
             Matcher mLabel = codeLabelPat.matcher(line);
             if (mLabel.matches()) {
                 String name = mLabel.group(1).toUpperCase(Locale.ROOT);
-                if (symbols.containsKey(name))
-                    throw new IllegalArgumentException("Símbolo duplicado: " + name);
+                if (symbols.containsKey(name)) throw new IllegalArgumentException("Símbolo duplicado: " + name);
                 symbols.put(name, pc);
                 continue;
             }
 
-            // É uma VARIÁVEL? (ex: X, DEC 0)
             Matcher mVar = varPat.matcher(line);
             if (mVar.matches()) {
                 String name = mVar.group(1).toUpperCase(Locale.ROOT);
                 int val = clampByte(Integer.parseInt(mVar.group(2)));
-                if (symbols.containsKey(name))
-                    throw new IllegalArgumentException("Símbolo duplicado: " + name);
-                if (nextData > 255) throw new IllegalArgumentException("Sem espaço para dados (estouro de memória).");
+                if (symbols.containsKey(name)) throw new IllegalArgumentException("Símbolo duplicado: " + name);
                 symbols.put(name, nextData);
                 dataInits.put(nextData, val);
                 nextData++;
                 continue;
             }
 
-            // É uma INSTRUÇÃO.
-            // Mapeia o PC atual para esta linha de código!
-            // (Usamos lineNumber-1 porque os documentos de texto começam na linha 0)
             debugMap.put(pc, lineNumber - 1);
-
             String[] parts = line.split("\\s+");
             String mn = normalizeMnemonic(parts[0]);
-
             if (needsArg(mn)) pc += 2; else pc += 1;
             if (pc > 256) throw new IllegalArgumentException("Código excede 256 bytes.");
         }
 
-        // 2) Segunda passada: gerar código, resolvendo símbolos
+        // Passada 2
         List<Integer> code = new ArrayList<>();
         for (String raw : lines) {
             String line = stripComments(raw).trim();
             if (line.isEmpty()) continue;
-
-            // Pular linhas de rótulo e de variável
             if (codeLabelPat.matcher(line).matches()) continue;
             if (varPat.matcher(line).matches()) continue;
 
-            // É uma instrução, processe-a
             String[] parts = line.split("\\s+");
             String mn = normalizeMnemonic(parts[0]);
 
@@ -110,6 +88,7 @@ public class Assembler {
                 case "SUBM", "SUB" -> { code.add(CPU.SUBM);  code.add(parseOperand(parts, symbols, line)); }
                 case "JMP"   -> { code.add(CPU.JMP);   code.add(parseOperand(parts, symbols, line)); }
                 case "JZ"    -> { code.add(CPU.JZ);    code.add(parseOperand(parts, symbols, line)); }
+                case "JN"    -> { code.add(CPU.JN);    code.add(parseOperand(parts, symbols, line)); }
                 case "IN", "INPUT"  -> code.add(CPU.IN);
                 case "OUT", "OUTPUT"-> code.add(CPU.OUT);
                 case "HALT"  -> code.add(CPU.HALT);
@@ -122,10 +101,9 @@ public class Assembler {
         return new AsmOut(bytes, dataInits, debugMap);
     }
 
-    // ===== helpers =====
     private static boolean needsArg(String m) {
         return switch (m) {
-            case "LOADI","LOADM","LOAD","STORE","ADDI","SUBI","ADDM","ADD","SUBM","SUB","JMP","JZ" -> true;
+            case "LOADI","LOADM","LOAD","STORE","ADDI","SUBI","ADDM","ADD","SUBM","SUB","JMP","JZ","JN" -> true;
             default -> false;
         };
     }
@@ -141,13 +119,6 @@ public class Assembler {
 
     private static String normalizeMnemonic(String m) {
         return m.toUpperCase(Locale.ROOT);
-    }
-
-    private static int parseNumber(String[] parts, String line) {
-        if (parts.length < 2) throw new IllegalArgumentException("Falta argumento em: " + line);
-        int v = Integer.parseInt(parts[1]);
-        if (v < 0 || v > 255) throw new IllegalArgumentException("Valor fora de 0..255: " + v);
-        return v;
     }
 
     private static int parseOperand(String[] parts, Map<String,Integer> symbols, String line) {

@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 
 public class EditorTab {
 
-    // --- Parte 1: Definição dos Estilos (Cores) ---
+    // --- Estilos ---
     private static StyleContext styleContext = StyleContext.getDefaultStyleContext();
     private static AttributeSet STYLE_DEFAULT;
     private static AttributeSet STYLE_MNEMONIC;
@@ -19,21 +19,21 @@ public class EditorTab {
     private static AttributeSet STYLE_NUMBER;
     private static AttributeSet STYLE_COMMENT;
 
-    // --- CORES PARA TEMA CLARO ---
+    // Cores Light
     private static final Color C_LIGHT_DEFAULT = Color.BLACK;
     private static final Color C_LIGHT_MNEMONIC = new Color(0, 0, 190);
     private static final Color C_LIGHT_LABEL_VAR = new Color(128, 0, 128);
     private static final Color C_LIGHT_NUMBER = new Color(20, 120, 20);
     private static final Color C_LIGHT_COMMENT = Color.GRAY;
 
-    // --- CORES PARA TEMA ESCURO ---
-    private static final Color C_DARK_DEFAULT = new Color(220, 220, 220); // Texto padrão claro
-    private static final Color C_DARK_MNEMONIC = new Color(130, 180, 255); // Azul claro
-    private static final Color C_DARK_LABEL_VAR = new Color(220, 140, 255); // Roxo claro
-    private static final Color C_DARK_NUMBER = new Color(140, 220, 140); // Verde claro
-    private static final Color C_DARK_COMMENT = new Color(128, 128, 128); // Cinza claro
+    // Cores Dark
+    private static final Color C_DARK_DEFAULT = new Color(220, 220, 220);
+    private static final Color C_DARK_MNEMONIC = new Color(130, 180, 255);
+    private static final Color C_DARK_LABEL_VAR = new Color(220, 140, 255);
+    private static final Color C_DARK_NUMBER = new Color(140, 220, 140);
+    private static final Color C_DARK_COMMENT = new Color(128, 128, 128);
 
-    // --- Parte 2: Padrões de RegEx para encontrar tokens ---
+    // RegEx
     private static final String[] MNEMONICS = {
             "LOADI", "LOADM", "LOAD", "STORE", "ADDI", "SUBI", "ADDM", "ADD", "SUBM", "SUB",
             "JMP", "JZ", "IN", "INPUT", "OUT", "OUTPUT", "HALT"
@@ -45,67 +45,57 @@ public class EditorTab {
 
     private static JTextPane editorPane;
 
-    /**
-     * Atualiza os estilos de cor do editor para o tema (claro ou escuro).
-     * Chamado pelo AppSwing quando o tema é trocado.
-     */
     public static void updateStyles(boolean isDark) {
         if (isDark) {
-            // Define estilos para o tema escuro
             STYLE_DEFAULT = styleContext.addAttribute(SimpleAttributeSet.EMPTY, StyleConstants.Foreground, C_DARK_DEFAULT);
             STYLE_MNEMONIC = styleContext.addAttribute(SimpleAttributeSet.EMPTY, StyleConstants.Foreground, C_DARK_MNEMONIC);
             STYLE_LABEL_VAR = styleContext.addAttribute(SimpleAttributeSet.EMPTY, StyleConstants.Foreground, C_DARK_LABEL_VAR);
             STYLE_NUMBER = styleContext.addAttribute(SimpleAttributeSet.EMPTY, StyleConstants.Foreground, C_DARK_NUMBER);
             STYLE_COMMENT = styleContext.addAttribute(SimpleAttributeSet.EMPTY, StyleConstants.Foreground, C_DARK_COMMENT);
         } else {
-            // Define estilos para o tema claro
             STYLE_DEFAULT = styleContext.addAttribute(SimpleAttributeSet.EMPTY, StyleConstants.Foreground, C_LIGHT_DEFAULT);
             STYLE_MNEMONIC = styleContext.addAttribute(SimpleAttributeSet.EMPTY, StyleConstants.Foreground, C_LIGHT_MNEMONIC);
             STYLE_LABEL_VAR = styleContext.addAttribute(SimpleAttributeSet.EMPTY, StyleConstants.Foreground, C_LIGHT_LABEL_VAR);
             STYLE_NUMBER = styleContext.addAttribute(SimpleAttributeSet.EMPTY, StyleConstants.Foreground, C_LIGHT_NUMBER);
             STYLE_COMMENT = styleContext.addAttribute(SimpleAttributeSet.EMPTY, StyleConstants.Foreground, C_LIGHT_COMMENT);
         }
-
-        // Força a recoloração do editor com os novos estilos
         applyHighlighting(editorPane);
     }
 
+    // --- MÉTODOS PÚBLICOS NOVOS PARA O MENU ABRIR/SALVAR ---
+    public static void setText(String text) {
+        if (editorPane != null) {
+            editorPane.setText(text);
+            applyHighlighting(editorPane); // Reaplica cores
+        }
+    }
+
+    public static String getText() {
+        return editorPane != null ? editorPane.getText() : "";
+    }
+    // -------------------------------------------------------
 
     public static JComponent build(Consumer<String> onRunProgram) {
-        updateStyles(false); // Carrega os estilos do tema claro (padrão)
-
+        updateStyles(false);
         JPanel panel = new JPanel(new BorderLayout(8, 8));
 
         editorPane = new JTextPane();
         editorPane.setFont(new Font("Consolas", Font.PLAIN, 14));
         editorPane.setText("""
-/ Exemplo: Contagem regressiva de 3 a 1
-LOADI 3
-STORE CONTADOR
-LOOP:
-LOAD CONTADOR  / Carrega 3, depois 2, depois 1
-JZ   FIM       / Se for 0, pula para FIM
-OUT            / Mostra 3, 2, 1 no log
-SUBI 1         / ACC vira 2, 1, 0
-STORE CONTADOR / Salva 2, 1, 0
-JMP LOOP       / Volta ao início do loop
-FIM:
+/ Exemplo: Soma Simples
+LOADI 10
+ADD   VALOR
+STORE RES
 HALT
 / --- Dados ---
-CONTADOR, DEC 0
+VALOR, DEC 5
+RES,   DEC 0
 """);
 
         editorPane.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                SwingUtilities.invokeLater(() -> applyHighlighting(editorPane));
-            }
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                SwingUtilities.invokeLater(() -> applyHighlighting(editorPane));
-            }
-            @Override
-            public void changedUpdate(DocumentEvent e) { }
+            @Override public void insertUpdate(DocumentEvent e) { SwingUtilities.invokeLater(() -> applyHighlighting(editorPane)); }
+            @Override public void removeUpdate(DocumentEvent e) { SwingUtilities.invokeLater(() -> applyHighlighting(editorPane)); }
+            @Override public void changedUpdate(DocumentEvent e) { }
         });
 
         SwingUtilities.invokeLater(() -> applyHighlighting(editorPane));
@@ -122,33 +112,23 @@ CONTADOR, DEC 0
         return panel;
     }
 
-    /**
-     * Aplica o syntax highlighting a um JTextPane específico.
-     * Isto é público para ser usado pelo AppSwing (no painel do depurador).
-     * @param pane O painel de texto onde aplicar as cores.
-     */
     public static void applyHighlighting(JTextPane pane) {
         if (pane == null) return;
-
         int caretPos = pane.getCaretPosition();
         StyledDocument doc = pane.getStyledDocument();
         String text;
         try {
             text = doc.getText(0, doc.getLength());
-        } catch (BadLocationException e) {
-            return;
-        }
+        } catch (BadLocationException e) { return; }
 
         doc.setCharacterAttributes(0, text.length(), STYLE_DEFAULT, true);
         findAndApply(doc, text, MNEMONIC_PATTERN, STYLE_MNEMONIC);
         findAndApply(doc, text, LABEL_VAR_PATTERN, STYLE_LABEL_VAR);
         findAndApply(doc, text, NUMBER_PATTERN, STYLE_NUMBER);
         findAndApply(doc, text, COMMENT_PATTERN, STYLE_COMMENT);
-
         pane.setCaretPosition(caretPos);
     }
 
-    /** Helper para aplicar estilos */
     private static void findAndApply(StyledDocument doc, String text, Pattern pattern, AttributeSet style) {
         Matcher matcher = pattern.matcher(text);
         while (matcher.find()) {
