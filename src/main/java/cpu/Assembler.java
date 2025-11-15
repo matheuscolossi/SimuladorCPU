@@ -68,7 +68,7 @@ public class Assembler {
         }
 
         // Passada 2
-        List<Integer> code = new ArrayList<>();
+        List<Integer> code = new ArrayList<>(); // A lista chama-se 'code'
         for (String raw : lines) {
             String line = stripComments(raw).trim();
             if (line.isEmpty()) continue;
@@ -79,33 +79,80 @@ public class Assembler {
             String mn = normalizeMnemonic(parts[0]);
 
             switch (mn) {
-                case "LOADI" -> { code.add(CPU.LOADI); code.add(parseOperand(parts, symbols, line)); }
-                case "LOADM", "LOAD" -> { code.add(CPU.LOADM); code.add(parseOperand(parts, symbols, line)); }
-                case "STORE" -> { code.add(CPU.STORE); code.add(parseOperand(parts, symbols, line)); }
-                case "ADDI"  -> { code.add(CPU.ADDI);  code.add(parseOperand(parts, symbols, line)); }
-                case "SUBI"  -> { code.add(CPU.SUBI);  code.add(parseOperand(parts, symbols, line)); }
-                case "ADDM", "ADD" -> { code.add(CPU.ADDM);  code.add(parseOperand(parts, symbols, line)); }
-                case "SUBM", "SUB" -> { code.add(CPU.SUBM);  code.add(parseOperand(parts, symbols, line)); }
-                case "JMP"   -> { code.add(CPU.JMP);   code.add(parseOperand(parts, symbols, line)); }
-                case "JZ"    -> { code.add(CPU.JZ);    code.add(parseOperand(parts, symbols, line)); }
-                case "JN"    -> { code.add(CPU.JN);    code.add(parseOperand(parts, symbols, line)); }
-                case "IN", "INPUT"  -> code.add(CPU.IN);
-                case "OUT", "OUTPUT"-> code.add(CPU.OUT);
-                case "HALT"  -> code.add(CPU.HALT);
-                default -> throw new IllegalArgumentException("Mnemônico inválido: " + mn);
+                case "LOADI":
+                    code.add(CPU.LOADI); code.add(parseOperand(parts, symbols, line));
+                    break;
+                case "LOADM": case "LOAD":
+                    code.add(CPU.LOADM); code.add(parseOperand(parts, symbols, line));
+                    break;
+                case "STORE":
+                    code.add(CPU.STORE); code.add(parseOperand(parts, symbols, line));
+                    break;
+                case "ADDI":
+                    code.add(CPU.ADDI);  code.add(parseOperand(parts, symbols, line));
+                    break;
+                case "SUBI":
+                    code.add(CPU.SUBI);  code.add(parseOperand(parts, symbols, line));
+                    break;
+                case "ADDM": case "ADD":
+                    code.add(CPU.ADDM);  code.add(parseOperand(parts, symbols, line));
+                    break;
+                case "SUBM": case "SUB":
+                    code.add(CPU.SUBM);  code.add(parseOperand(parts, symbols, line));
+                    break;
+                case "JMP":
+                    code.add(CPU.JMP);   code.add(parseOperand(parts, symbols, line));
+                    break;
+                case "JZ":
+                    code.add(CPU.JZ);    code.add(parseOperand(parts, symbols, line));
+                    break;
+                case "JN":
+                    code.add(CPU.JN);    code.add(parseOperand(parts, symbols, line));
+                    break;
+                case "IN": case "INPUT":
+                    code.add(CPU.IN);
+                    break;
+                case "OUT": case "OUTPUT":
+                    code.add(CPU.OUT);
+                    break;
+                case "HALT":
+                    code.add(CPU.HALT);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Mnemônico inválido: " + mn);
             }
         }
 
+        // =========================================================
+        // CORREÇÃO DO ERRO (out -> code)
+        // =========================================================
         int[] bytes = new int[code.size()];
-        for (int i = 0; i < code.size(); i++) bytes[i] = code.get(i) & 0xFF;
+        for (int i = 0; i < code.size(); i++) {
+            bytes[i] = code.get(i) & 0xFF;
+        }
         return new AsmOut(bytes, dataInits, debugMap);
+        // =========================================================
     }
 
     private static boolean needsArg(String m) {
-        return switch (m) {
-            case "LOADI","LOADM","LOAD","STORE","ADDI","SUBI","ADDM","ADD","SUBM","SUB","JMP","JZ","JN" -> true;
-            default -> false;
-        };
+        switch (m) {
+            case "LOADI":
+            case "LOADM":
+            case "LOAD":
+            case "STORE":
+            case "ADDI":
+            case "SUBI":
+            case "ADDM":
+            case "ADD":
+            case "SUBM":
+            case "SUB":
+            case "JMP":
+            case "JZ":
+            case "JN":
+                return true;
+            default:
+                return false;
+        }
     }
 
     private static String stripComments(String raw) {

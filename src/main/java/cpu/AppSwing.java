@@ -24,7 +24,7 @@ public class AppSwing extends JFrame {
     private final JLabel ir  = bold("IR=0x00");
     private final JLabel acc = bold("ACC=0");
     private final JLabel z   = bold("Z=0");
-    private final JLabel n   = bold("N=0"); // Nova flag N
+    private final JLabel n   = bold("N=0");
 
     // Controles
     private final JComboBox<String> exampleBox = new JComboBox<>();
@@ -97,7 +97,7 @@ public class AppSwing extends JFrame {
             if (content != null) {
                 EditorTab.setText(content);
                 loadUserProgram(content);
-                abas.setSelectedIndex(2); // Vai para o Editor
+                abas.setSelectedIndex(2);
             }
         });
 
@@ -119,12 +119,11 @@ public class AppSwing extends JFrame {
         JLabel title = new JLabel("Simulador Educativo de CPU");
         title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
 
-        // Inicializa cores claras
         chipify(pc,  new Color(225,240,255), C_LIGHT_CHIP_FG);
         chipify(ir,  new Color(225,240,255), C_LIGHT_CHIP_FG);
         chipify(acc, new Color(220,255,220), C_LIGHT_CHIP_FG);
         chipify(z,   new Color(255,240,220), C_LIGHT_CHIP_FG);
-        chipify(n,   new Color(255,220,220), C_LIGHT_CHIP_FG); // Flag N
+        chipify(n,   new Color(255,220,220), C_LIGHT_CHIP_FG);
 
         JPanel stats = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         stats.setOpaque(false);
@@ -172,7 +171,6 @@ public class AppSwing extends JFrame {
         expl.setBorder(BorderFactory.createTitledBorder("Explicação do passo"));
         expl.setFont(new Font("Consolas", Font.PLAIN, 13));
 
-        // Split Inferior: Código | Log
         JSplitPane bottomSplitPane = new JSplitPane(
                 JSplitPane.HORIZONTAL_SPLIT,
                 new JScrollPane(codeViewPane),
@@ -180,7 +178,6 @@ public class AppSwing extends JFrame {
         );
         bottomSplitPane.setResizeWeight(0.5);
 
-        // Split Principal: Memória | Inferior
         JSplitPane mainSplit = new JSplitPane(
                 JSplitPane.VERTICAL_SPLIT,
                 new JScrollPane(memTable),
@@ -313,7 +310,7 @@ public class AppSwing extends JFrame {
         ir.setText(String.format("IR=0x%02X", cpu.IR));
         acc.setText("ACC=" + cpu.ACC);
         z.setText("Z=" + cpu.Z);
-        n.setText("N=" + cpu.N); // Atualiza N
+        n.setText("N=" + cpu.N);
         for (int r = 0; r < 16; r++)
             for (int c = 0; c < 16; c++)
                 memModel.setValueAt(cpu.mem[r * 16 + c], r, c);
@@ -374,33 +371,33 @@ public class AppSwing extends JFrame {
 
     // --- CARREGAMENTO DE PROGRAMAS ---
     private void seedExamples() {
-        examples.put("Ex.: Soma (X+Y → Z)", """
-            LOAD X     / Carrega valor de X
-            ADD  Y     / Soma valor de Y
-            STORE Z    / Salva resultado em Z
-            HALT
-            / --- Dados ---
-            X, DEC 5
-            Y, DEC 3
-            Z, DEC 0
-            """);
-        examples.put("Ex.: Divisão Robusta (JN)", """
-            IN STORE A / Dividendo
-            IN STORE B / Divisor
-            LOADI 0 STORE Q
-            LOOP:
-            LOAD A SUB B
-            JN FIM
-            STORE A
-            LOAD Q ADDI 1 STORE Q
-            JMP LOOP
-            FIM:
-            LOAD Q OUT
-            HALT
-            A, DEC 0
-            B, DEC 0
-            Q, DEC 0
-            """);
+        examples.put("Ex.: Soma (X+Y → Z)",
+                "LOAD X     / Carrega valor de X\n"
+                        + "ADD  Y     / Soma valor de Y\n"
+                        + "STORE Z    / Salva resultado em Z\n"
+                        + "HALT\n"
+                        + "/ --- Dados ---\n"
+                        + "X, DEC 5\n"
+                        + "Y, DEC 3\n"
+                        + "Z, DEC 0\n"
+        );
+        examples.put("Ex.: Divisão Robusta (JN)",
+                "IN STORE A / Dividendo\n"
+                        + "IN STORE B / Divisor\n"
+                        + "LOADI 0 STORE Q\n"
+                        + "LOOP:\n"
+                        + "LOAD A SUB B\n"
+                        + "JN FIM\n"
+                        + "STORE A\n"
+                        + "LOAD Q ADDI 1 STORE Q\n"
+                        + "JMP LOOP\n"
+                        + "FIM:\n"
+                        + "LOAD Q OUT\n"
+                        + "HALT\n"
+                        + "A, DEC 0\n"
+                        + "B, DEC 0\n"
+                        + "Q, DEC 0\n"
+        );
     }
 
     private void loadSelectedProgram() {
@@ -417,10 +414,17 @@ public class AppSwing extends JFrame {
     private void loadUserProgram(String userCode) {
         try {
             timer.stop();
-            if (userCode == null || userCode.isBlank()) return;
-            Assembler.AsmOut out = Assembler.assembleWithVars(userCode, 200);
+            // Correção Java 8: userCode.isBlank() -> userCode.trim().isEmpty()
+            if (userCode == null || userCode.trim().isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Programa vazio", "Aviso", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            String src = userCode.replace("\r\n","\n").trim();
+            Assembler.AsmOut out = Assembler.assembleWithVars(src, 200);
+
             loadToCPU(out);
-            setupDebug(userCode, out.debugMap);
+            setupDebug(src, out.debugMap);
             refreshUI();
             expl.setText("Programa carregado.\nDump [0..31]: " + dumpBytes(0, 32) + "\n");
             highlightCurrentPCLine();
@@ -512,6 +516,10 @@ public class AppSwing extends JFrame {
         else if (log.startsWith("OUT"))   titulo = "OUT — saída de dados";
         else if (log.startsWith("HALT"))  return "HALT — fim do programa.\n" + stateLine();
         else                              titulo = "Passo";
+
+        // =========================================================
+        // CORREÇÃO DO ERRO DE DIGITAÇÃO (E')
+        // =========================================================
         return titulo + "\n  " + stateLine() + "\n  Ação: " + log;
     }
 

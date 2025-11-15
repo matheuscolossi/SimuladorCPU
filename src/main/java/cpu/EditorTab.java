@@ -36,7 +36,7 @@ public class EditorTab {
     // RegEx
     private static final String[] MNEMONICS = {
             "LOADI", "LOADM", "LOAD", "STORE", "ADDI", "SUBI", "ADDM", "ADD", "SUBM", "SUB",
-            "JMP", "JZ", "IN", "INPUT", "OUT", "OUTPUT", "HALT"
+            "JMP", "JZ", "JN", "IN", "INPUT", "OUT", "OUTPUT", "HALT"
     };
     private static final Pattern MNEMONIC_PATTERN = Pattern.compile("\\b(" + String.join("|", MNEMONICS) + ")\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern LABEL_VAR_PATTERN = Pattern.compile("\\b([A-Za-z_][A-Za-z0-9_]*)(:|\\s*,\\s*DEC)\\b", Pattern.CASE_INSENSITIVE);
@@ -62,18 +62,16 @@ public class EditorTab {
         applyHighlighting(editorPane);
     }
 
-    // --- MÉTODOS PÚBLICOS NOVOS PARA O MENU ABRIR/SALVAR ---
     public static void setText(String text) {
         if (editorPane != null) {
             editorPane.setText(text);
-            applyHighlighting(editorPane); // Reaplica cores
+            applyHighlighting(editorPane);
         }
     }
 
     public static String getText() {
         return editorPane != null ? editorPane.getText() : "";
     }
-    // -------------------------------------------------------
 
     public static JComponent build(Consumer<String> onRunProgram) {
         updateStyles(false);
@@ -81,16 +79,30 @@ public class EditorTab {
 
         editorPane = new JTextPane();
         editorPane.setFont(new Font("Consolas", Font.PLAIN, 14));
-        editorPane.setText("""
-/ Exemplo: Soma Simples
-LOADI 10
-ADD   VALOR
-STORE RES
-HALT
-/ --- Dados ---
-VALOR, DEC 5
-RES,   DEC 0
-""");
+
+        // =========================================================
+        // CORREÇÃO DOS TEXT BLOCKS PARA JAVA 8
+        // =========================================================
+        editorPane.setText(
+                "/ Exemplo: Divisão Robusta\n"
+                        + "IN STORE A / Dividendo\n"
+                        + "IN STORE B / Divisor\n"
+                        + "LOADI 0 STORE Q\n"
+                        + "LOOP:\n"
+                        + "LOAD A SUB B\n"
+                        + "JN FIM / Pula se for negativo\n"
+                        + "STORE A\n"
+                        + "LOAD Q ADDI 1 STORE Q\n"
+                        + "JMP LOOP\n"
+                        + "FIM:\n"
+                        + "LOAD Q OUT / Mostra Quociente\n"
+                        + "LOAD A OUT / Mostra Resto\n"
+                        + "HALT\n"
+                        + "A, DEC 0\n"
+                        + "B, DEC 0\n"
+                        + "Q, DEC 0\n"
+        );
+        // =========================================================
 
         editorPane.getDocument().addDocumentListener(new DocumentListener() {
             @Override public void insertUpdate(DocumentEvent e) { SwingUtilities.invokeLater(() -> applyHighlighting(editorPane)); }
