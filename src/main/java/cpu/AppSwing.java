@@ -2,13 +2,12 @@ package cpu;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
+
 import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableCellRenderer;
+import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.DefaultTableModel;
 import javax.swing.text.BadLocationException;
-import javax.swing.text.DefaultHighlighter;
-import javax.swing.text.Highlighter;
 import java.awt.*;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -17,76 +16,109 @@ import java.util.regex.Pattern;
 
 public class AppSwing extends JFrame {
     private final CPU cpu = new CPU();
-    private final Timer timer = new Timer(60, e -> doStep());
+    private final Timer timer = new Timer(80, e -> doStep());
 
-    // UI Components - Registradores
-    private final JLabel pc  = bold("PC=000");
-    private final JLabel ir  = bold("IR=0x00");
-    private final JLabel acc = bold("ACC=0");
-    private final JLabel z   = bold("Z=0");
-    private final JLabel n   = bold("N=0");
+    // UI Components
+    private final StatCard cardPC  = new StatCard("PC (Counter)", "000");
+    private final StatCard cardIR  = new StatCard("IR (Instruc)", "0x00");
+    private final StatCard cardACC = new StatCard("ACC (Accum)", "0");
+    private final StatCard cardZ   = new StatCard("Z (Zero)", "0");
+    private final StatCard cardN   = new StatCard("N (Neg)", "0");
 
-    // Controles
     private final JComboBox<String> exampleBox = new JComboBox<>();
     private final JButton btLoad  = new JButton("Carregar");
-    private final JButton btStep  = new JButton("Step");
-    private final JButton btRun   = new JButton("Run");
-    private final JButton btPause = new JButton("Pause");
-    private final JButton btReset = new JButton("Reset");
+    private final JButton btStep  = new JButton("Step ⤵");
+    private final JButton btRun   = new JButton("Run ▶");
+    private final JButton btPause = new JButton("Pause ⏸");
+    private final JButton btReset = new JButton("Reset ↺");
     private final JToggleButton btTheme = new JToggleButton("Tema 🌓");
 
-    // Tabela de Memória
     private final DefaultTableModel memModel = new DefaultTableModel(16, 16) {
         @Override public boolean isCellEditable(int r, int c) { return false; }
     };
     private final JTable memTable = new JTable(memModel);
 
-    // Log e Depurador
-    private final JTextArea expl = new JTextArea(6, 40);
+    private final JTextArea expl = new JTextArea();
     private final JTextPane codeViewPane = new JTextPane();
 
-    // Mapas e Dados
     private final Map<String, String> examples = new LinkedHashMap<>();
     private Map<Integer, Integer> currentDebugMap = new LinkedHashMap<>();
-    private String currentSourceCode = "";
 
-    // Destaques Visuais
-    private final Highlighter.HighlightPainter lineHighlighter =
-            new DefaultHighlighter.DefaultHighlightPainter(new Color(255, 255, 100, 150));
+    private final javax.swing.text.Highlighter.HighlightPainter lineHighlighter =
+            new javax.swing.text.DefaultHighlighter.DefaultHighlightPainter(new Color(255, 235, 59, 100));
     private Object lastHighlightTag = null;
     private int lastReadAddr = -1;
     private int lastWriteAddr = -1;
 
-    // --- CORES (Temas) ---
-    private final Color C_LIGHT_PC = new Color(255, 255, 170);
-    private final Color C_LIGHT_READ = new Color(200, 255, 200);
-    private final Color C_LIGHT_WRITE = new Color(255, 230, 190);
-    private final Color C_LIGHT_CHIP_FG = new Color(30, 30, 30);
+    private Color colorRead = new Color(200, 255, 200);
+    private Color colorWrite = new Color(255, 224, 178);
+    private Color colorPC = new Color(255, 255, 141);
 
-    private final Color C_DARK_PC = new Color(130, 130, 0);
-    private final Color C_DARK_READ = new Color(0, 100, 0);
-    private final Color C_DARK_WRITE = new Color(120, 70, 0);
-    private final Color C_DARK_CHIP_FG = new Color(220, 220, 220);
-
-    private Color colorPC = C_LIGHT_PC;
-    private Color colorRead = C_LIGHT_READ;
-    private Color colorWrite = C_LIGHT_WRITE;
-
-    // Regex para log
-    private static final Pattern READ_PAT = Pattern.compile("(LOADM|ADDM|SUBM) \\[(\\d+)\\]");
+    private static final Pattern READ_PAT = Pattern.compile("(LOADM|ADDM|SUBM|LOAD) \\[(\\d+)\\]");
     private static final Pattern WRITE_PAT = Pattern.compile("STORE \\[(\\d+)\\]");
 
     private final JTabbedPane abas = new JTabbedPane();
+    private JPanel topPanelRef;
 
     public AppSwing() {
         super("Simulador Educativo de CPU");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
 
-        // --- 1. BARRA DE MENUS ---
+        setupMenu();
+        setupTopPanel();
+        setupMemoryTable();
+
+        // --- LAYOUT ---
+
+        JSplitPane bottomSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, createCodePanel(), createLogPanel());
+        bottomSplit.setResizeWeight(0.5);
+        bottomSplit.setBorder(BorderFactory.createEmptyBorder());
+        bottomSplit.setDividerSize(4);
+
+        JScrollPane scrollTable = new JScrollPane(memTable);
+        scrollTable.setBorder(BorderFactory.createEmptyBorder());
+        scrollTable.getViewport().setBackground(UIManager.getColor("Table.background"));
+
+        JSplitPane mainSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, scrollTable, bottomSplit);
+        mainSplit.setResizeWeight(0.0);
+
+        // --- CORREÇÃO AQUI ---
+        // Antes estava 480. Mudamos para 380 para dar mais espaço ao código embaixo.
+        mainSplit.setDividerLocation(380);
+
+        mainSplit.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        mainSplit.setDividerSize(4);
+
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.add(topPanelRef, BorderLayout.NORTH);
+        mainPanel.add(mainSplit, BorderLayout.CENTER);
+
+        abas.addTab(" Simulador ", mainPanel);
+        abas.addTab(" Manual ", ManualTab.build());
+        abas.addTab(" Editor ", EditorTab.build(code -> {
+            loadUserProgram(code);
+            abas.setSelectedIndex(0);
+        }));
+
+        setContentPane(abas);
+
+        seedExamples();
+        for (String k : examples.keySet()) exampleBox.addItem(k);
+
+        setupListeners();
+
+        // Aumentei a altura para 850px para caber tudo confortavelmente
+        setSize(1100, 850);
+        setLocationRelativeTo(null);
+        applyLightTheme();
+        setVisible(true);
+    }
+
+    private void setupMenu() {
         JMenuBar menuBar = new JMenuBar();
         JMenu menuFile = new JMenu("Arquivo");
-        JMenuItem itemOpen = new JMenuItem("Abrir...");
-        JMenuItem itemSave = new JMenuItem("Salvar como...");
+        JMenuItem itemOpen = new JMenuItem("Abrir Código Fonte...");
+        JMenuItem itemSave = new JMenuItem("Salvar Código...");
         JMenuItem itemExit = new JMenuItem("Sair");
 
         itemOpen.setAccelerator(KeyStroke.getKeyStroke("control O"));
@@ -101,11 +133,7 @@ public class AppSwing extends JFrame {
             }
         });
 
-        itemSave.addActionListener(e -> {
-            String content = EditorTab.getText();
-            FileManager.saveFile(this, content);
-        });
-
+        itemSave.addActionListener(e -> FileManager.saveFile(this, EditorTab.getText()));
         itemExit.addActionListener(e -> System.exit(0));
 
         menuFile.add(itemOpen);
@@ -114,146 +142,195 @@ public class AppSwing extends JFrame {
         menuFile.add(itemExit);
         menuBar.add(menuFile);
         setJMenuBar(menuBar);
+    }
 
-        // --- 2. PAINEL SUPERIOR (STATS E CONTROLES) ---
-        JLabel title = new JLabel("Simulador Educativo de CPU");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
+    private void setupTopPanel() {
+        JPanel statsPanel = new JPanel(new GridLayout(1, 5, 10, 0));
+        statsPanel.setOpaque(false);
+        statsPanel.add(cardPC);
+        statsPanel.add(cardIR);
+        statsPanel.add(cardACC);
+        statsPanel.add(cardZ);
+        statsPanel.add(cardN);
+        statsPanel.setBorder(new EmptyBorder(0, 5, 10, 5));
 
-        chipify(pc,  new Color(225,240,255), C_LIGHT_CHIP_FG);
-        chipify(ir,  new Color(225,240,255), C_LIGHT_CHIP_FG);
-        chipify(acc, new Color(220,255,220), C_LIGHT_CHIP_FG);
-        chipify(z,   new Color(255,240,220), C_LIGHT_CHIP_FG);
-        chipify(n,   new Color(255,220,220), C_LIGHT_CHIP_FG);
+        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        toolbar.setOpaque(false);
 
-        JPanel stats = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        stats.setOpaque(false);
-        stats.add(pc); stats.add(ir); stats.add(acc); stats.add(z); stats.add(n);
+        exampleBox.setPreferredSize(new Dimension(200, 35));
 
-        exampleBox.setPrototypeDisplayValue("Ex.: Soma (X+Y → Z)             ");
+        styleButton(btLoad, null);
+        styleButton(btStep, null);
+        styleButton(btRun, new Color(46, 125, 50));
+        btRun.setForeground(Color.WHITE);
+        styleButton(btPause, new Color(255, 143, 0));
+        btPause.setForeground(Color.WHITE);
+        styleButton(btReset, new Color(198, 40, 40));
+        btReset.setForeground(Color.WHITE);
+        styleButton(btTheme, null);
 
-        modernize(btLoad,  new Color(210,230,255));
-        modernize(btStep,  new Color(235,235,235));
-        modernize(btRun,   new Color(200,240,200));
-        modernize(btPause, new Color(255,235,205));
-        modernize(btReset, new Color(255,210,210));
-        modernize(btTheme, new Color(230, 230, 230));
+        toolbar.add(new JLabel("Exemplos:"));
+        toolbar.add(exampleBox);
+        toolbar.add(btLoad);
+        toolbar.add(Box.createHorizontalStrut(15));
+        toolbar.add(btStep);
+        toolbar.add(btRun);
+        toolbar.add(btPause);
+        toolbar.add(btReset);
+        toolbar.add(Box.createHorizontalGlue());
+        toolbar.add(btTheme);
 
-        JPanel controls = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
-        controls.setOpaque(false);
-        controls.add(exampleBox);
-        controls.add(btLoad); controls.add(btStep); controls.add(btRun);
-        controls.add(btPause); controls.add(btReset);
+        topPanelRef = new JPanel(new BorderLayout());
+        topPanelRef.setBorder(new EmptyBorder(15, 15, 5, 15));
+        topPanelRef.add(statsPanel, BorderLayout.NORTH);
+        topPanelRef.add(toolbar, BorderLayout.CENTER);
+    }
 
-        JPanel top = new JPanel();
-        top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
-        top.setBorder(BorderFactory.createEmptyBorder(10,12,10,12));
-        JPanel titleRow = new JPanel(new BorderLayout());
-        titleRow.setOpaque(false);
-        titleRow.add(title, BorderLayout.WEST);
-        titleRow.add(btTheme, BorderLayout.EAST);
-
-        top.add(titleRow);
-        top.add(Box.createVerticalStrut(6));
-        top.add(stats);
-        top.add(Box.createVerticalStrut(8));
-        top.add(controls);
-
-        setupMemoryTable();
-
-        // --- 3. LAYOUT CENTRAL (SPLIT PANES) ---
-        codeViewPane.setFont(new Font("Consolas", Font.PLAIN, 13));
+    private JPanel createCodePanel() {
+        codeViewPane.setFont(new Font("Consolas", Font.PLAIN, 14));
         codeViewPane.setEditable(false);
-        codeViewPane.setBorder(BorderFactory.createTitledBorder("Código Fonte (Read-Only)"));
 
+        JPanel p = new JPanel(new BorderLayout());
+        p.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY), " 📜 Código Fonte (Execução) "));
+        p.add(new JScrollPane(codeViewPane));
+        return p;
+    }
+
+    private JPanel createLogPanel() {
         expl.setEditable(false);
         expl.setLineWrap(true);
         expl.setWrapStyleWord(true);
-        expl.setBorder(BorderFactory.createTitledBorder("Explicação do passo"));
-        expl.setFont(new Font("Consolas", Font.PLAIN, 13));
+        expl.setFont(new Font("Segoe UI", Font.PLAIN, 14));
 
-        JSplitPane bottomSplitPane = new JSplitPane(
-                JSplitPane.HORIZONTAL_SPLIT,
-                new JScrollPane(codeViewPane),
-                new JScrollPane(expl)
-        );
-        bottomSplitPane.setResizeWeight(0.5);
+        JPanel p = new JPanel(new BorderLayout());
+        p.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY), " ℹ️ Explicação do Passo "));
+        p.add(new JScrollPane(expl));
+        return p;
+    }
 
-        JSplitPane mainSplit = new JSplitPane(
-                JSplitPane.VERTICAL_SPLIT,
-                new JScrollPane(memTable),
-                bottomSplitPane
-        );
-        mainSplit.setResizeWeight(0.5);
+    private void styleButton(AbstractButton b, Color bg) {
+        b.putClientProperty("JButton.buttonType", "roundRect");
+        b.setFocusPainted(false);
+        b.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        b.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        if (bg != null) {
+            b.setBackground(bg);
+            b.putClientProperty("JButton.borderColor", bg);
+        }
+    }
 
-        JPanel simPanel = new JPanel(new BorderLayout(8, 8));
-        simPanel.add(top, BorderLayout.NORTH);
-        simPanel.add(mainSplit, BorderLayout.CENTER);
+    private void setupMemoryTable() {
+        String[] heads = "0,1,2,3,4,5,6,7,8,9,A,B,C,D,E,F".split(",");
+        memModel.setColumnIdentifiers(heads);
 
-        // --- 4. ABAS ---
-        abas.addTab("Simulador", simPanel);
-        abas.addTab("Manual", ManualTab.build());
-        abas.addTab("Editor", EditorTab.build(code -> {
-            loadUserProgram(code);
-            abas.setSelectedIndex(0);
-        }));
-        setContentPane(abas);
+        memTable.setRowHeight(28);
+        memTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        memTable.setShowVerticalLines(false);
+        memTable.setIntercellSpacing(new Dimension(0, 1));
+        memTable.setGridColor(new Color(230,230,230));
+        memTable.setFont(new Font("Monospaced", Font.PLAIN, 13));
+        memTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
+        memTable.getTableHeader().setReorderingAllowed(false);
 
-        seedExamples();
-        for (String k : examples.keySet()) exampleBox.addItem(k);
-        exampleBox.setSelectedIndex(0);
+        for (int c = 0; c < 16; c++) {
+            memTable.getColumnModel().getColumn(c).setPreferredWidth(55);
+        }
 
-        // --- 5. LISTENERS ---
+        memTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
+                                                           boolean hasFocus, int row, int column) {
+                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                int addr = row * 16 + column;
+
+                c.setForeground(table.getForeground());
+
+                if (!isSelected) {
+                    c.setBackground(row % 2 == 0 ? table.getBackground() : UIManager.getColor("Table.alternateRowColor"));
+                    if (c.getBackground() == null) c.setBackground(new Color(248, 248, 248));
+                }
+
+                if (addr == lastReadAddr) {
+                    c.setBackground(colorRead);
+                    c.setForeground(Color.BLACK);
+                } else if (addr == lastWriteAddr) {
+                    c.setBackground(colorWrite);
+                    c.setForeground(Color.BLACK);
+                }
+
+                if (addr == cpu.PC) {
+                    c.setBackground(colorPC);
+                    c.setForeground(Color.BLACK);
+                    setBorder(BorderFactory.createLineBorder(Color.ORANGE, 2));
+                } else {
+                    setBorder(noFocusBorder);
+                }
+
+                setHorizontalAlignment(SwingConstants.CENTER);
+                return c;
+            }
+        });
+    }
+
+    private void setupListeners() {
         btLoad.addActionListener(e -> {
             timer.stop();
             loadSelectedProgram();
             refreshUI();
-            expl.setText("Programa carregado.\n");
             highlightCurrentPCLine();
         });
         btStep.addActionListener(e -> doStep());
-        btRun.addActionListener(e -> timer.start());
-        btPause.addActionListener(e -> timer.stop());
+        btRun.addActionListener(e -> {
+            if (!timer.isRunning()) {
+                timer.start();
+                btRun.setText("Rodando...");
+                btRun.setEnabled(false);
+                btStep.setEnabled(false);
+            }
+        });
+        btPause.addActionListener(e -> {
+            timer.stop();
+            btRun.setText("Run ▶");
+            btRun.setEnabled(true);
+            btStep.setEnabled(true);
+        });
         btReset.addActionListener(e -> {
             timer.stop();
             cpu.reset();
             clearLineHighlight();
             codeViewPane.setText("");
             currentDebugMap.clear();
-            currentSourceCode = "";
             refreshUI();
-            expl.setText("CPU e memória resetadas.\n\n");
+            expl.setText(" Sistema resetado.\n");
+            btRun.setText("Run ▶");
+            btRun.setEnabled(true);
+            btStep.setEnabled(true);
         });
 
         btTheme.addActionListener(e -> {
             if (btTheme.isSelected()) applyDarkTheme();
             else applyLightTheme();
-
             SwingUtilities.updateComponentTreeUI(this);
             ManualTab.updateStyles();
             EditorTab.applyHighlighting(codeViewPane);
             highlightCurrentPCLine();
         });
-
-        refreshUI();
-        setSize(1000, 700);
-        setLocationRelativeTo(null);
-        setVisible(true);
     }
 
-    // --- LÓGICA DE TEMAS ---
     private void applyDarkTheme() {
         try {
             UIManager.setLookAndFeel(new FlatDarkLaf());
             btTheme.setText("Tema ☀️");
-            colorPC = C_DARK_PC; colorRead = C_DARK_READ; colorWrite = C_DARK_WRITE;
-            Color darkChipBg = UIManager.getColor("Panel.background");
-            chipify(pc, darkChipBg, C_DARK_CHIP_FG);
-            chipify(ir, darkChipBg, C_DARK_CHIP_FG);
-            chipify(acc, darkChipBg, C_DARK_CHIP_FG);
-            chipify(z, darkChipBg, C_DARK_CHIP_FG);
-            chipify(n, darkChipBg, C_DARK_CHIP_FG);
-            modernize(btLoad, null); modernize(btStep, null); modernize(btRun, null);
-            modernize(btPause, null); modernize(btReset, null); modernize(btTheme, null);
+            colorRead = new Color(27, 94, 32);
+            colorWrite = new Color(230, 81, 0);
+            colorPC = new Color(255, 214, 0);
+
+            Color cardBg = new Color(60, 63, 65);
+            cardPC.updateTheme(cardBg, Color.WHITE);
+            cardIR.updateTheme(cardBg, Color.WHITE);
+            cardACC.updateTheme(cardBg, Color.WHITE);
+            cardZ.updateTheme(cardBg, Color.WHITE);
+            cardN.updateTheme(cardBg, Color.WHITE);
             EditorTab.updateStyles(true);
         } catch (Exception ignored) {}
     }
@@ -262,26 +339,29 @@ public class AppSwing extends JFrame {
         try {
             UIManager.setLookAndFeel(new FlatLightLaf());
             btTheme.setText("Tema 🌓");
-            colorPC = C_LIGHT_PC; colorRead = C_LIGHT_READ; colorWrite = C_LIGHT_WRITE;
-            chipify(pc, new Color(225,240,255), C_LIGHT_CHIP_FG);
-            chipify(ir, new Color(225,240,255), C_LIGHT_CHIP_FG);
-            chipify(acc, new Color(220,255,220), C_LIGHT_CHIP_FG);
-            chipify(z, new Color(255,240,220), C_LIGHT_CHIP_FG);
-            chipify(n, new Color(255,220,220), C_LIGHT_CHIP_FG);
-            modernize(btLoad, new Color(210,230,255)); modernize(btStep, new Color(235,235,235));
-            modernize(btRun, new Color(200,240,200)); modernize(btPause, new Color(255,235,205));
-            modernize(btReset, new Color(255,210,210)); modernize(btTheme, new Color(230, 230, 230));
+            colorRead = new Color(200, 255, 200);
+            colorWrite = new Color(255, 224, 178);
+            colorPC = new Color(255, 245, 157);
+
+            Color cardBg = new Color(245, 245, 245);
+            cardPC.updateTheme(cardBg, new Color(50,50,50));
+            cardIR.updateTheme(cardBg, new Color(50,50,50));
+            cardACC.updateTheme(cardBg, new Color(50,50,50));
+            cardZ.updateTheme(cardBg, new Color(50,50,50));
+            cardN.updateTheme(cardBg, new Color(50,50,50));
             EditorTab.updateStyles(false);
         } catch (Exception ignored) {}
     }
 
-    // --- LÓGICA DE EXECUÇÃO ---
     private void doStep() {
         lastReadAddr = -1; lastWriteAddr = -1;
 
         if (cpu.halted) {
             timer.stop();
-            explain("HALT — fim do programa.\n" + stateLine());
+            btRun.setText("Run ▶");
+            btRun.setEnabled(true);
+            btStep.setEnabled(true);
+            explain("⏹ HALT encontrado. Execução finalizada.");
             refreshUI();
             return;
         }
@@ -306,70 +386,56 @@ public class AppSwing extends JFrame {
     }
 
     private void refreshUI() {
-        pc.setText(String.format("PC=%03d", cpu.PC));
-        ir.setText(String.format("IR=0x%02X", cpu.IR));
-        acc.setText("ACC=" + cpu.ACC);
-        z.setText("Z=" + cpu.Z);
-        n.setText("N=" + cpu.N);
+        cardPC.setValue(String.format("%03d", cpu.PC));
+        cardIR.setValue(String.format("0x%02X", cpu.IR));
+        cardACC.setValue(String.valueOf(cpu.ACC));
+        cardZ.setValue(cpu.Z == 1 ? "1 (Sim)" : "0");
+        cardN.setValue(cpu.N == 1 ? "1 (Sim)" : "0");
+
+        if (cpu.Z == 1) cardZ.setValueColor(new Color(46, 125, 50));
+        else cardZ.setValueColor(UIManager.getColor("Label.foreground"));
+
+        if (cpu.N == 1) cardN.setValueColor(Color.RED);
+        else cardN.setValueColor(UIManager.getColor("Label.foreground"));
+
         for (int r = 0; r < 16; r++)
             for (int c = 0; c < 16; c++)
                 memModel.setValueAt(cpu.mem[r * 16 + c], r, c);
         memTable.repaint();
     }
 
-    // --- MÉTODOS AUXILIARES UI ---
-    private static JLabel bold(String s) {
-        JLabel l = new JLabel(s);
-        l.setFont(l.getFont().deriveFont(Font.BOLD));
-        return l;
+    private static class StatCard extends JPanel {
+        private final JLabel lblTitle;
+        private final JLabel lblValue;
+
+        public StatCard(String title, String initialValue) {
+            setLayout(new BorderLayout());
+            setBorder(new EmptyBorder(8, 12, 8, 12));
+
+            lblTitle = new JLabel(title);
+            lblTitle.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            lblTitle.setForeground(Color.GRAY);
+
+            lblValue = new JLabel(initialValue);
+            lblValue.setFont(new Font("Consolas", Font.BOLD, 22));
+
+            add(lblTitle, BorderLayout.NORTH);
+            add(lblValue, BorderLayout.CENTER);
+
+            setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(new Color(200,200,200), 1, true),
+                    new EmptyBorder(5, 10, 5, 10)
+            ));
+        }
+
+        public void setValue(String v) { lblValue.setText(v); }
+        public void setValueColor(Color c) { lblValue.setForeground(c); }
+        public void updateTheme(Color bg, Color fg) {
+            setBackground(bg);
+            lblValue.setForeground(fg);
+        }
     }
 
-    private void modernize(JButton b, Color bg) {
-        b.putClientProperty("JButton.buttonType", "roundRect");
-        b.setBackground(bg);
-        b.setFocusPainted(false);
-    }
-    private void modernize(JToggleButton b, Color bg) {
-        b.putClientProperty("JButton.buttonType", "roundRect");
-        b.setBackground(bg);
-        b.setFocusPainted(false);
-    }
-    private void chipify(JLabel l, Color bg, Color fg) {
-        l.setOpaque(true);
-        l.setBackground(bg);
-        l.setForeground(fg);
-        l.setBorder(BorderFactory.createEmptyBorder(6,10,6,10));
-        l.setFont(l.getFont().deriveFont(Font.BOLD, 13f));
-    }
-
-    private void setupMemoryTable() {
-        String[] heads = "A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P".split(",");
-        memModel.setColumnIdentifiers(heads);
-        memTable.setRowHeight(22);
-        memTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-        for (int c = 0; c < 16; c++) memTable.getColumnModel().getColumn(c).setPreferredWidth(48);
-
-        memTable.setDefaultRenderer(Object.class, new TableCellRenderer() {
-            final DefaultTableCellRenderer base = new DefaultTableCellRenderer();
-            @Override
-            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
-                                                           boolean hasFocus, int row, int column) {
-                Component c = base.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-                int addr = row * 16 + column;
-
-                if (addr == lastReadAddr) c.setBackground(colorRead);
-                else if (addr == lastWriteAddr) c.setBackground(colorWrite);
-                else c.setBackground(null);
-
-                if (addr == cpu.PC) c.setBackground(colorPC);
-
-                ((JLabel)c).setHorizontalAlignment(SwingConstants.CENTER);
-                return c;
-            }
-        });
-    }
-
-    // --- CARREGAMENTO DE PROGRAMAS ---
     private void seedExamples() {
         examples.put("Ex.: Soma (X+Y → Z)",
                 "LOAD X     / Carrega valor de X\n"
@@ -381,23 +447,17 @@ public class AppSwing extends JFrame {
                         + "Y, DEC 3\n"
                         + "Z, DEC 0\n"
         );
-        examples.put("Ex.: Divisão Robusta (JN)",
-                "IN STORE A / Dividendo\n"
-                        + "IN STORE B / Divisor\n"
-                        + "LOADI 0 STORE Q\n"
-                        + "LOOP:\n"
-                        + "LOAD A SUB B\n"
-                        + "JN FIM\n"
-                        + "STORE A\n"
-                        + "LOAD Q ADDI 1 STORE Q\n"
-                        + "JMP LOOP\n"
-                        + "FIM:\n"
-                        + "LOAD Q OUT\n"
-                        + "HALT\n"
-                        + "A, DEC 0\n"
-                        + "B, DEC 0\n"
-                        + "Q, DEC 0\n"
-        );
+        examples.put("Ex.: Divisão (Loop)",
+                "IN STORE A\n" +
+                        "IN STORE B\n" +
+                        "LOADI 0 STORE Q\n" +
+                        "LOOP: LOAD A SUB B\n" +
+                        "JN FIM\n" +
+                        "STORE A\n" +
+                        "LOAD Q ADDI 1 STORE Q\n" +
+                        "JMP LOOP\n" +
+                        "FIM: LOAD Q OUT HALT\n" +
+                        "A, DEC 0\nB, DEC 0\nQ, DEC 0");
     }
 
     private void loadSelectedProgram() {
@@ -407,29 +467,23 @@ public class AppSwing extends JFrame {
             loadToCPU(out);
             setupDebug(prog, out.debugMap);
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Erro: " + ex.getMessage(), "Erro", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Erro: " + ex.getMessage());
         }
     }
 
     private void loadUserProgram(String userCode) {
         try {
             timer.stop();
-            // Correção Java 8: userCode.isBlank() -> userCode.trim().isEmpty()
-            if (userCode == null || userCode.trim().isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Programa vazio", "Aviso", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-
+            if (userCode == null || userCode.trim().isEmpty()) return;
             String src = userCode.replace("\r\n","\n").trim();
             Assembler.AsmOut out = Assembler.assembleWithVars(src, 200);
-
             loadToCPU(out);
             setupDebug(src, out.debugMap);
             refreshUI();
-            expl.setText("Programa carregado.\nDump [0..31]: " + dumpBytes(0, 32) + "\n");
+            expl.setText("✅ Programa carregado com sucesso.\n");
             highlightCurrentPCLine();
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Erro: " + ex.getMessage(), "Erro", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Erro: " + ex.getMessage());
         }
     }
 
@@ -445,9 +499,8 @@ public class AppSwing extends JFrame {
 
     private void setupDebug(String source, Map<Integer,Integer> debugMap) {
         clearLineHighlight();
-        currentSourceCode = source;
+        codeViewPane.setText(source);
         currentDebugMap = debugMap;
-        codeViewPane.setText(currentSourceCode);
         EditorTab.applyHighlighting(codeViewPane);
         codeViewPane.setCaretPosition(0);
     }
@@ -468,70 +521,35 @@ public class AppSwing extends JFrame {
                 int startIndex = codeViewPane.getDocument().getDefaultRootElement().getElement(lineToHighlight).getStartOffset();
                 int endIndex = codeViewPane.getDocument().getDefaultRootElement().getElement(lineToHighlight).getEndOffset();
                 lastHighlightTag = codeViewPane.getHighlighter().addHighlight(startIndex, endIndex, lineHighlighter);
+
                 SwingUtilities.invokeLater(() -> {
                     try {
-                        Rectangle viewRect = codeViewPane.modelToView(startIndex);
-                        if (viewRect != null) {
-                            viewRect.height *= 3;
-                            codeViewPane.scrollRectToVisible(viewRect);
-                        }
-                    } catch (BadLocationException ignored) {}
+                        Rectangle r = codeViewPane.modelToView(startIndex);
+                        if(r!=null) codeViewPane.scrollRectToVisible(r);
+                    } catch(Exception ignored){}
                 });
             } catch (BadLocationException ignored) {}
         }
     }
 
-    private String dumpBytes(int start, int count) {
-        StringBuilder sb = new StringBuilder();
-        int end = Math.min(start + count, cpu.mem.length);
-        for (int i = start; i < end; i++) {
-            sb.append(cpu.mem[i]);
-            if (i < end - 1) sb.append(' ');
-        }
-        return sb.toString();
-    }
-
     private void explain(String msg) {
-        expl.append(msg + "\n\n");
-        expl.setCaretPosition(expl.getDocument().getLength());
-    }
-
-    private String stateLine() {
-        return String.format("Estado: PC=%03d | IR=0x%02X | ACC=%d | Z=%d | N=%d", cpu.PC, cpu.IR, cpu.ACC, cpu.Z, cpu.N);
+        expl.setText(msg + "\n" + expl.getText());
+        expl.setCaretPosition(0);
     }
 
     private String prettyLog(String log) {
-        String titulo;
-        if (log.contains("LOADI"))      titulo = "LOADI — carrega valor imediato";
-        else if (log.contains("LOADM")) titulo = "LOADM — lê da memória";
-        else if (log.contains("STORE")) titulo = "STORE — grava na memória";
-        else if (log.contains("ADDI"))  titulo = "ADDI — soma imediato";
-        else if (log.contains("SUBI"))  titulo = "SUBI — subtrai imediato";
-        else if (log.contains("ADDM"))  titulo = "ADDM — soma memória";
-        else if (log.contains("SUBM"))  titulo = "SUBM — subtrai memória";
-        else if (log.startsWith("JMP"))   titulo = "JMP — desvio incondicional";
-        else if (log.startsWith("JZ"))    titulo = "JZ — desvio se Zero (Z=1)";
-        else if (log.startsWith("JN"))    titulo = "JN — desvio se Negativo (N=1)";
-        else if (log.startsWith("IN"))    titulo = "IN — entrada de dados";
-        else if (log.startsWith("OUT"))   titulo = "OUT — saída de dados";
-        else if (log.startsWith("HALT"))  return "HALT — fim do programa.\n" + stateLine();
-        else                              titulo = "Passo";
-
-        // =========================================================
-        // CORREÇÃO DO ERRO DE DIGITAÇÃO (E')
-        // =========================================================
-        return titulo + "\n  " + stateLine() + "\n  Ação: " + log;
+        return " ► " + log;
     }
 
     public static void main(String[] args) {
         try {
-            UIManager.setLookAndFeel(new FlatLightLaf());
-            UIManager.put("Component.arc", 14);
-            UIManager.put("Button.arc", 14);
+            UIManager.put("Button.arc", 12);
+            UIManager.put("Component.arc", 12);
+            UIManager.put("ProgressBar.arc", 12);
             UIManager.put("TextComponent.arc", 12);
-            UIManager.put("ScrollBar.thumbArc", 12);
-            UIManager.put("defaultFont", new Font("Segoe UI", Font.PLAIN, 13));
+            UIManager.setLookAndFeel(new FlatLightLaf());
         } catch (Exception ignored) {}
+
         SwingUtilities.invokeLater(AppSwing::new);
     }
 }

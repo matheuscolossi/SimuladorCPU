@@ -24,14 +24,14 @@ public class EditorTab {
     private static final Color C_LIGHT_MNEMONIC = new Color(0, 0, 190);
     private static final Color C_LIGHT_LABEL_VAR = new Color(128, 0, 128);
     private static final Color C_LIGHT_NUMBER = new Color(20, 120, 20);
-    private static final Color C_LIGHT_COMMENT = Color.GRAY;
+    private static final Color C_LIGHT_COMMENT = new Color(200, 100, 0); // Orange/Rust
 
     // Cores Dark
     private static final Color C_DARK_DEFAULT = new Color(220, 220, 220);
     private static final Color C_DARK_MNEMONIC = new Color(130, 180, 255);
     private static final Color C_DARK_LABEL_VAR = new Color(220, 140, 255);
     private static final Color C_DARK_NUMBER = new Color(140, 220, 140);
-    private static final Color C_DARK_COMMENT = new Color(128, 128, 128);
+    private static final Color C_DARK_COMMENT = new Color(255, 180, 100); // Light Orange
 
     // RegEx
     private static final String[] MNEMONICS = {
@@ -44,6 +44,7 @@ public class EditorTab {
     private static final Pattern COMMENT_PATTERN = Pattern.compile("[;/].*");
 
     private static JTextPane editorPane;
+
 
     public static void updateStyles(boolean isDark) {
         if (isDark) {
